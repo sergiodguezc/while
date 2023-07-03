@@ -3,7 +3,6 @@
 
 -- The syntax of the language is defined using
 -- inductive types.
-
 -- The syntax of arithmetic expressions
 inductive Aexp : Type
 | const (n : ℤ) : Aexp
@@ -35,7 +34,6 @@ infix ` :≤ ` : 70 := Bexp.le
 prefix ` :¬ ` : 80 := Bexp.not
 infix ` :∧ ` : 65 := Bexp.and
 infix ` :∨ ` : 65 := Bexp.or
-
 -- The syntax of commands
 inductive Stm : Type
 | skip : Stm
@@ -59,7 +57,6 @@ def empty_state : State := λ _, 0
 def update (st : State) (x : string) (n : ℤ) : State := λ x', if x' = x then n else st x'
 
 notation st ` [ ` x ` ↦ ` n ` ] ` := update st x n
-
 
 -- Denotational semantics of arithmetic expressions
 @[simp] def aeval : Aexp → State → ℤ
@@ -122,46 +119,42 @@ def loop : Stm := (x ::= const 0) ;; _while ( :¬(var x :≡ const 5)) _do skip 
 -- principle for the proposition. Since inductively defined proof objects are
 -- often called "derivation trees," this form of proof is also known as
 -- induction on derivations. 
-inductive cevalₙₛ : Stm × State → State → Prop
-| assₙₛ {s x a} :
+inductive cevalₙₛ : Stm → State → State → Prop
+| assₙₛ : ∀ (x : string) (a : Aexp) (s : State),
   ---------------------------------------------------------
-   cevalₙₛ (x ::= a, s) (s[x ↦ A⟦a⟧s])
+   cevalₙₛ (x ::= a) s (s[x ↦ A⟦a⟧s])
 
-| skipₙₛ {s} : 
+| skipₙₛ : ∀ (s : State),
   ---------------------------------------------------------
-   cevalₙₛ (skip, s) s
+   cevalₙₛ (skip) s s
 
-| compₙₛ {s s' s'' S₁ S₂}
-  (hS₁ : cevalₙₛ (S₁, s) s') (hS₂ : cevalₙₛ (S₂, s') s'') :
+| compₙₛ : ∀ (s s' s'' : State) (S₁ S₂ : Stm)
+  (hS₁ : cevalₙₛ S₁ s s') (hS₂ : cevalₙₛ S₂ s' s''),
   ---------------------------------------------------------
-   cevalₙₛ (S₁ ;; S₂, s) s''
+   cevalₙₛ (S₁ ;; S₂) s s''
 
-| if_ttₙₛ {s s' b S₁ S₂}
-  (hcond : B⟦b⟧s = true) (hS₁ : cevalₙₛ (S₁, s) s') :
+| if_ttₙₛ : ∀ (s s' : State) (b : Bexp) (S₁ S₂ : Stm)
+  (hcond : B⟦b⟧s = true) (hS₁ : cevalₙₛ S₁ s s'), 
   ---------------------------------------------------------
-   cevalₙₛ (_if b _then S₁ _else S₂ _end, s) s'
+   cevalₙₛ (_if b _then S₁ _else S₂ _end) s s'
 
-| if_ffₙₛ {s s' b S₁ S₂}
-  (hcond : B⟦b⟧s = false) (hS₂ : cevalₙₛ (S₂, s) s') :
+| if_ffₙₛ : ∀ (s s' : State) (b : Bexp) (S₁ S₂ : Stm)
+  (hcond : B⟦b⟧s = false) (hS₂ : cevalₙₛ S₂ s s'),
   ---------------------------------------------------------
-   cevalₙₛ (_if b _then S₁ _else S₂ _end, s) s'
+   cevalₙₛ (_if b _then S₁ _else S₂ _end) s s'
 
-| while_ttₙₛ {s s' s'' b S}
-  (hcond: B⟦b⟧s = true) (hS : cevalₙₛ (S, s) s') 
-  (hW : cevalₙₛ (_while b _do S _end, s') s'') :
+| while_ttₙₛ : ∀ (s s' s'' : State) (b : Bexp) (S : Stm)
+  (hcond: B⟦b⟧s = true) (hS : cevalₙₛ S s s') 
+  (hW : cevalₙₛ (_while b _do S _end) s' s''),
   ---------------------------------------------------------
-   cevalₙₛ (_while b _do S _end, s) s''
+   cevalₙₛ (_while b _do S _end) s s''
 
-| while_ffₙₛ {s b S}
-  (hcond : B⟦b⟧s = false) :
+| while_ffₙₛ : ∀ (s : State) (b : Bexp) (S : Stm)
+  (hcond : B⟦b⟧s = false),
   ---------------------------------------------------------
-   cevalₙₛ (_while b _do S _end, s) s
+   cevalₙₛ (_while b _do S _end) s s
 
-infix ` ⟶ ` : 110 := cevalₙₛ
-
-variables {S₁ S₂ : Stm} {s₀ s₁ s₂ : State}
--- #check ⟨S₁, s₀⟩ ⟶ s₁
--- #check ⟨S₁ ;; S₂, s₀⟩ ⟶ s₂
+notation `⟨` S `,` s `⟩ ``⟶ `:= cevalₙₛ S s
 
 lemma beval_deterministic : ∀ {b s b₁ b₂}, B⟦b⟧s = b₁ ∧  B⟦b⟧s = b₂ → b₁ = b₂ :=
 begin
@@ -190,8 +183,6 @@ begin
 end
 
 -- Theorem 1.1
--- Let's prove that the relation is deterministic. That is, if ⟨S, s⟩ ⟶ s₁ and
--- ⟨S, s⟩ ⟶ s₂, then s₁ = s₂.
 theorem ceval_deterministic : ∀ {S s s' s''}, ⟨S, s⟩ ⟶ s' → ⟨S, s⟩ ⟶ s'' → s' = s'' :=
 begin 
   -- The proof begins by introducing variables S, s₀, s₁, and s₂ and assumptions
@@ -208,17 +199,10 @@ begin
   -- state s''.
   induction h₁ generalizing s'',
   case cevalₙₛ.skipₙₛ : s₁ { 
-    -- The `cases h2` is a case analysis on the second derivation, h2. This is
-    -- because, in this case, both h1 and h2 correspond to the same rule, the
-    -- cevalₙₛ.skipₙₛ rule, which means that st1 and st2 must be the same for
-    -- the two derivations. The refl command completes the proof of the
-    -- cevalₙₛ.skipₙₛ case by stating that the two states are equal.
     cases h₂,
     refl,
   },
   case cevalₙₛ.assₙₛ : s₁ x a { 
-    -- Same as the previous case, but this time the two derivations correspond
-    -- to the cevalₙₛ.assₙₛ rule.
     cases h₂,
     refl,
   },
@@ -238,7 +222,8 @@ begin
       -- This rule could not have been used to derive ⟨S, s⟩ ⟶ s₂, because
       -- B⟦b⟧s = false by hipothesis
       exfalso,
-      exact beval_tt_and_ff_false ⟨hcond, h₂_hcond⟩,
+      rw hcond at h₂_hcond,
+      trivial,
     },
   },
   case cevalₙₛ.if_ffₙₛ : s s' b S₁ S₂ hcond hS₂ ih { 
@@ -247,7 +232,8 @@ begin
       -- This rule could not have been used to derive ⟨S, s⟩ ⟶ s₂, because
       -- B⟦b⟧s = false by hipothesis
       exfalso,
-      exact beval_tt_and_ff_false ⟨h₂_hcond, hcond⟩,
+      rw hcond at h₂_hcond,
+      trivial,
     },
     { 
       exact ih h₂_hS₂,
@@ -259,7 +245,9 @@ begin
       -- This rule could not have been used to derive ⟨S, s⟩ ⟶ s₂, because
       -- B⟦b⟧s = false by hipothesis
       exfalso,
-      exact beval_tt_and_ff_false ⟨h₂_hcond, hcond⟩,
+      -- exact beval_tt_and_ff_false ⟨h₂_hcond, hcond⟩,
+      rw hcond at h₂_hcond,
+      trivial,
     },
     { refl,},
   },
@@ -274,7 +262,8 @@ begin
       -- This rule could not have been used to derive ⟨S, s⟩ ⟶ s₂, because
       -- B⟦b⟧s = false by hipothesis
       exfalso,
-      exact beval_tt_and_ff_false ⟨hcond, h₂_hcond⟩,
+      rw hcond at h₂_hcond,
+      trivial,
     },
   },
 end
@@ -282,10 +271,10 @@ end
 -- Definition 1.2 (Semantic Equivalence)
 def equivₙₛ (S₁ S₂ : Stm) : Prop := ∀ s s', ⟨S₁, s⟩ ⟶ s' ↔ ⟨S₂, s⟩ ⟶ s'
 
-notation S₁ `≈ₙₛ` S₂ := equivₙₛ S₁ S₂
+infixl ` ≃ₙₛ ` : 90 := equivₙₛ
 
 -- Lemma 1.3
-lemma equivₙₛ_refl : ∀ S, equivₙₛ S S := 
+lemma equivₙₛ_refl : ∀ S, S ≃ₙₛ S := 
 begin
   intros S s s',
   split,
@@ -294,14 +283,14 @@ begin
 end
 
 -- Lemma 1.4
-lemma equivₙₛ_symm : ∀ S₁ S₂, equivₙₛ S₁ S₂ → equivₙₛ S₂ S₁ :=
+lemma equivₙₛ_symm : ∀ S₁ S₂, S₁ ≃ₙₛ S₂ → S₂ ≃ₙₛ S₁ :=
 begin
   intros S₁ S₂ h s s',
   apply iff.symm (h s s'),
 end
 
 -- Lemma 1.5
-@[trans] lemma equivₙₛ_trans : ∀ S₁ S₂ S₃, equivₙₛ S₁ S₂ → equivₙₛ S₂ S₃ → equivₙₛ S₁ S₃ :=
+@[trans] lemma equivₙₛ_trans : ∀ S₁ S₂ S₃, S₁ ≃ₙₛ S₂ → S₂ ≃ₙₛ S₃ → S₁ ≃ₙₛ S₃ :=
 begin
   intros S₁ S₂ S₃ h₁ h₂,
   have hL : ∀ s s', ⟨S₁, s⟩ ⟶ s' → ⟨S₃, s⟩ ⟶ s',
@@ -326,7 +315,7 @@ begin
 end
 
 -- Lemma 1.6
-lemma equivₙₛ_skip : ∀ S, equivₙₛ (skip ;; S) S :=
+lemma equivₙₛ_skip : ∀ S, (skip ;; S) ≃ₙₛ S :=
 begin
   intros S s s',
   split,
@@ -352,7 +341,7 @@ begin
 end
 
 -- Lemma 1.7
-lemma equivₙₛ_seq_assoc : ∀ S₁ S₂ S₃, equivₙₛ ((S₁ ;; S₂) ;; S₃) (S₁ ;; (S₂ ;; S₃)) :=
+lemma equivₙₛ_seq_assoc : ∀ S₁ S₂ S₃, ((S₁ ;; S₂) ;; S₃) ≃ₙₛ (S₁ ;; (S₂ ;; S₃)) :=
 begin
   intros S₁ S₂ S₃ s s',
   split,
@@ -383,8 +372,8 @@ begin
 end
 
 -- Lemma 1.8
-lemma equivₙₛwhile_unfold : ∀ b S, equivₙₛ 
-  (_while b _do S _end) (_if b _then (S ;; _while b _do S _end) _else skip _end) :=
+lemma equivₙₛwhile_unfold : ∀ b S,
+  (_while b _do S _end) ≃ₙₛ (_if b _then (S ;; _while b _do S _end) _else skip _end) :=
 begin
   intros b S s s',
   split,
@@ -425,6 +414,246 @@ begin
   },
 end
 
--- Let's continue introducing some terminology
-def terminates (S : Stm) (s : State) : Prop := ∃ s', ⟨S, s⟩ ⟶ s'
-def loops (S : Stm) (s : State) : Prop := ¬ ∃ s', ⟨S, s⟩ ⟶ s'
+-- Lemma 1.9. Some programs do not terminate
+theorem loops_never_stops : ∀ s s' S S' (hS : S = _while tt _do S' _end), ¬ ⟨S, s ⟩ ⟶ s' := 
+begin
+  intros s s' S S' hS contra,
+  induction contra,
+  try {
+    repeat {
+      trivial,
+    }
+  },
+  case cevalₙₛ.while_ffₙₛ : s₁ b S'' hcond {
+    cases hS,
+    contradiction,
+  },
+end
+
+-- Language extension: _repeat S _until b _end. 
+-- This construct is similar to the while loop, but the body S is always executed at least once.
+-- The loop terminates when the condition b is true.
+
+-- To add this construct to the language, we need to add a new rule to the evaluation relation
+-- and a new constructor to the syntax of statements.
+
+inductive Stm' : Type
+| skip' : Stm'
+| assign (x : string) (a : Aexp) : Stm'
+| seq (S₁ S₂ : Stm') : Stm'
+| cond (b : Bexp) (S₁ S₂: Stm') : Stm'
+| while (b : Bexp) (S : Stm') : Stm'
+| repeat (b : Bexp) (S : Stm') : Stm'
+
+notation ` skip' ` := Stm'.skip'
+infix ` ::=' ` : 80 := Stm'.assign
+infix ` ;;' ` : 90 := Stm'.seq
+notation ` _if' ` b ` _then ` c1 ` _else ` c2 ` _end ` := Stm'.cond b c1 c2
+notation ` _while' ` b ` _do ` c ` _end ` := Stm'.while b c
+notation `_repeat ` S ` _until ` b ` _end` := Stm'.repeat b S
+
+inductive cevalₙₛ' : Stm' → State → State → Prop
+| assₙₛ : ∀ (x : string) (a : Aexp) (s : State),
+  ---------------------------------------------------------
+   cevalₙₛ' (x ::=' a) s (s[x ↦ A⟦a⟧s])
+
+| skipₙₛ : ∀ (s : State),
+  ---------------------------------------------------------
+   cevalₙₛ' skip' s s
+
+| compₙₛ : ∀ (s s' s'' : State) (S₁ S₂ : Stm')
+  (hS₁ : cevalₙₛ' S₁ s s') (hS₂ : cevalₙₛ' S₂ s' s''),
+  ---------------------------------------------------------
+   cevalₙₛ' (S₁ ;;' S₂) s s''
+
+| if_ttₙₛ : ∀ (s s' : State) (b : Bexp) (S₁ S₂ : Stm')
+  (hcond : B⟦b⟧s = true) (hS₁ : cevalₙₛ' S₁ s s'), 
+  ---------------------------------------------------------
+   cevalₙₛ' (_if' b _then S₁ _else S₂ _end) s s'
+
+| if_ffₙₛ : ∀ (s s' : State) (b : Bexp) (S₁ S₂ : Stm')
+  (hcond : B⟦b⟧s = false) (hS₂ : cevalₙₛ' S₂ s s'),
+  ---------------------------------------------------------
+   cevalₙₛ' (_if' b _then S₁ _else S₂ _end) s s'
+
+| while_ttₙₛ : ∀ (s s' s'' : State) (b : Bexp) (S : Stm')
+  (hcond: B⟦b⟧s = true) (hS : cevalₙₛ' S s s') 
+  (hW : cevalₙₛ' (_while' b _do S _end) s' s''),
+  ---------------------------------------------------------
+   cevalₙₛ' (_while' b _do S _end) s s''
+
+| while_ffₙₛ : ∀ (s : State) (b : Bexp) (S : Stm')
+  (hcond : B⟦b⟧s = false),
+  ---------------------------------------------------------
+   cevalₙₛ' (_while' b _do S _end) s s
+
+| repeat_ff : ∀ (s s' s'' : State) (S : Stm') (b : Bexp),
+  cevalₙₛ' S s s' → cevalₙₛ' (_repeat S _until b _end) s' s'' → (B⟦b⟧s' = false) →
+  -----------------------------------------------------------------------------
+   cevalₙₛ' (_repeat S _until b _end) s s''
+
+| repeat_tt : ∀ (s s': State) (S : Stm') (b : Bexp),
+  cevalₙₛ' S s s' → (B⟦b⟧s' = true) →
+  -----------------------------------------------------------------------------
+   cevalₙₛ' (_repeat S _until b _end) s s'
+
+notation `⟨` S `,` s `⟩ ``⟶' `:= cevalₙₛ' S s
+
+-- Definition 1.2. Extended equivalence relation
+def equivₙₛ' (S₁ S₂ : Stm') : Prop := ∀ s s', ⟨S₁, s⟩ ⟶' s' ↔ ⟨S₂, s⟩ ⟶' s'
+
+infixl ` ≃ₙₛ' ` : 90 := equivₙₛ'
+
+lemma equivₙₛ'while_unfold : ∀ b S,
+  (_while' b _do S _end) ≃ₙₛ' (_if' b _then (S ;;' _while' b _do S _end) _else skip' _end) :=
+begin
+  intros b S s s',
+  split,
+  { 
+    intro h,
+    cases h,
+    { 
+      apply cevalₙₛ'.if_ttₙₛ,
+      { assumption, },
+      { 
+        apply cevalₙₛ'.compₙₛ,
+        repeat {assumption},
+      },
+    },
+    { 
+      apply cevalₙₛ'.if_ffₙₛ,
+      { 
+        assumption,
+      },
+      { 
+        apply cevalₙₛ'.skipₙₛ,
+      },
+    },
+  },
+  { 
+    intro h,
+    cases h,
+    { 
+      cases h_hS₁,
+      apply cevalₙₛ'.while_ttₙₛ,
+      repeat {assumption},
+    },
+    { 
+      cases h_hS₂,
+      apply cevalₙₛ'.while_ffₙₛ,
+      { assumption, },
+    },
+  },
+end
+
+lemma equivₙₛ'_repeat : ∀ S b, (_repeat S _until b _end) ≃ₙₛ' (S ;;' (_if' b _then (skip') _else (_repeat S _until b _end) _end)) :=
+begin
+  intros S b s s',
+  split,
+  {
+    intro h,
+    cases h,
+    case cevalₙₛ'.repeat_ff : s₁ s₂ s₃ S b hS hR hcond {
+      apply cevalₙₛ'.compₙₛ,
+      { assumption, },
+      { apply cevalₙₛ'.if_ffₙₛ s₂ s₃ b (skip') (_repeat S _until b _end) hcond hR, }
+    },
+    case cevalₙₛ'.repeat_tt : s₁ s₂ S b hS hcond {
+      apply cevalₙₛ'.compₙₛ,
+      { assumption, },
+      { 
+        have h₁ : ⟨skip', s₂⟩ ⟶' s₂ := by apply (cevalₙₛ'.skipₙₛ s₂),
+        apply cevalₙₛ'.if_ttₙₛ s₂ s₂ b (skip') (_repeat S _until b _end) hcond h₁,
+      },
+    },
+  },
+  {
+    intro h,
+    cases h,
+    cases h_hS₂,
+    case cevalₙₛ'.if_ttₙₛ : s₁ s₂ b hcond hS {
+      have h₁ : s₁ = s₂ := by cases hS ; refl,
+      rw ← h₁ at *,
+      apply cevalₙₛ'.repeat_tt s s₁ S b h_hS₁ hcond,
+    },
+    case cevalₙₛ'.if_ffₙₛ : s₁ s₂ b hcond hR {
+      apply cevalₙₛ'.repeat_ff s s₁ s₂ S b h_hS₁ hR hcond,
+    },
+  },
+end
+
+
+-- The following lemma is used to prove the equivalence between the while and repeat constructs
+-- The idea is to prove that: if you have a derivation ⟨while b do S, s₁⟩ ⟶' s₂,
+-- then, if you have ⟨S, s₀⟩ ⟶' s₁, then you can derive ⟨repeat S until b end,
+-- s₀⟩ ⟶' s₂. The proof needs a constrained that S₁ = while b do S and S₂ = repeat S until b end. 
+lemma while_s_repeat: ∀ {S₁ S₂ S b s₀ s₁ s₂} 
+  (hS₁ : S₁ = _while' :¬ b _do S _end) (hS₂ : S₂ = _repeat S _until b _end)
+  (h₁ : ⟨S₁, s₁⟩ ⟶' s₂) (h₂ : ⟨S, s₀⟩ ⟶' s₁),  ⟨S₂, s₀⟩ ⟶' s₂ :=
+begin
+  intros S₁ S₂ S b s₀ s₁ s₂ hS₁ hS₂ h₁ h₂,
+  induction h₁ generalizing s₀,
+  try {repeat {trivial,},},
+  case cevalₙₛ'.while_ttₙₛ : s₀' s₁' s₂' b S' hcond hS hW ih₁ ih₂ {
+    cases hS₁,
+    cases hS₂,
+    have ih₃ : ∀ (s₀ : State), ⟨S,s₀⟩ ⟶' s₁' → ⟨_repeat S _until b _end,s₀⟩ ⟶' s₂' := by apply ih₂ ; assumption,
+    specialize ih₃ s₀',
+    have h₃ : ⟨_repeat S _until b _end,s₀'⟩ ⟶' s₂' := ih₃ hS,
+    have hcond₂ : B⟦b⟧ s₀' = to_bool false := by simp [beval] at * ; exact hcond,
+    apply cevalₙₛ'.repeat_ff s₀ s₀' s₂' S b h₂ h₃ hcond₂,
+  },
+  case cevalₙₛ'.while_ffₙₛ : s b  b hcond s'' hS {
+    cases hS₁,
+    have hcond₂ : B⟦b⟧ s = to_bool true := by simp [beval] at * ; exact hcond,
+    rw hS₂,
+    apply cevalₙₛ'.repeat_tt s'' s S b hS hcond₂,
+  }
+end
+
+
+-- Lemma 1.10
+theorem equivₙₛ'_repeat_while : ∀ S₁ S₂ S₃ b (hS₁ : S₁ = _repeat S₃ _until b _end) (hS₂ : S₂ = S₃ ;;' _while' :¬ b _do S₃ _end), S₁ ≃ₙₛ' S₂ :=
+begin
+  intros S₁ S₂ S₃ b hS₁ hS₂ s s',
+  split,
+  { -- Right implication
+    intro h,
+    induction h,
+    try { repeat { trivial, }, },
+    case cevalₙₛ'.repeat_ff : s₁ s₂ s₃ _ _ hS hR hcond ih₁ ih₂ {
+      cases hS₁,
+      cases hS₂,
+      apply cevalₙₛ'.compₙₛ,
+      { assumption, },
+      { 
+        have hcond₂ : B⟦:¬ b⟧ s₂ = to_bool true := by simp [beval] ; exact hcond,
+        have h₁ : ⟨S₃ ;;' _while' :¬ b _do S₃ _end ,s₂⟩ ⟶' s₃ := by apply ih₂ ; refl,
+        let nb := :¬ b,
+        cases h₁,
+        apply cevalₙₛ'.while_ttₙₛ s₂ h₁_s' s₃ nb S₃ hcond₂ h₁_hS₁ h₁_hS₂,
+      },
+    },
+    case cevalₙₛ'.repeat_tt : s₁ s₂ S b hS hcond ih {
+      cases hS₁,
+      cases hS₂,
+      apply cevalₙₛ'.compₙₛ,
+      { assumption, },
+      { 
+        have hcond₂ : B⟦:¬ b⟧ s₂ = to_bool false := by simp [beval] ; exact hcond,
+        let nb := :¬ b,
+        apply cevalₙₛ'.while_ffₙₛ s₂ nb S₃ hcond₂,
+      },
+    },
+  },
+  { -- Left implication
+  -- Just apply the lemma : while_s_repeat
+    intro h,
+    cases h,
+    try {repeat {trivial,}, },
+    cases hS₂,
+    let S₂ := _while' :¬ b _do S₃ _end,
+    have hS₂ : S₂ = _while' :¬ b _do S₃ _end := rfl,
+    exact while_s_repeat hS₂ hS₁ h_hS₂ h_hS₁,
+  },
+end
